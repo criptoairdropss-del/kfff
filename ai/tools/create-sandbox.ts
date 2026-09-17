@@ -6,6 +6,8 @@ import { tool } from 'ai'
 import description from './create-sandbox.md'
 import z from 'zod/v3'
 
+import { getSandboxCredentials } from '@/lib/sandbox-credentials'
+
 interface Params {
   writer: UIMessageStreamWriter<UIMessage<never, DataPart>>
 }
@@ -41,6 +43,7 @@ export const createSandbox = ({ writer }: Params) =>
         const sandbox = await Sandbox.create({
           timeout: timeout ?? 600000,
           ports,
+          ...getSandboxCredentials(),
         })
 
         writer.write({
