@@ -6,10 +6,9 @@ import {
   stepCountIs,
   streamText,
 } from 'ai'
-import { DEFAULT_MODEL, MODEL_NAMES, SUPPORTED_MODELS } from '@/ai/constants'
+import { DEFAULT_MODEL, MODEL_NAMES, Models, SUPPORTED_MODELS } from '@/ai/constants'
 import { NextResponse } from 'next/server'
 import { getModelOptions } from '@/ai/gateway'
-import { checkBotId } from 'botid/server'
 import { tools } from '@/ai/tools'
 import prompt from './prompt.md'
 
@@ -19,12 +18,14 @@ interface BodyData {
   reasoningEffort?: 'low' | 'medium'
 }
 
-export async function POST(req: Request) {
-  const [checkResult, { messages, modelId = DEFAULT_MODEL, reasoningEffort }] =
-    await Promise.all([checkBotId(), req.json() as Promise<BodyData>])
+export const maxDuration = 60
 
-  if (checkResult.isBot) {
-    return NextResponse.json({ error: `Bot detected` }, { status: 403 })
+export async function POST(req: Request) {
+  let { messages, modelId = DEFAULT_MODEL, reasoningEffort } =
+    (await req.json()) as BodyData
+
+  if (modelId === 'google/gemini-3.6') {
+    modelId = Models.Gemini36Flash
   }
 
   if (!SUPPORTED_MODELS.includes(modelId)) {
