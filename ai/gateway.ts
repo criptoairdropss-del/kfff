@@ -5,8 +5,46 @@ import type { JSONValue } from 'ai'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 
+async function fetchWithRateLimitRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const maxAttempts = 5
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await fetch(input, init)
+    if (response.status === 429 && attempt < maxAttempts) {
+      let delayMs = 7000
+      try {
+        const cloned = response.clone()
+        const json = (await cloned.json()) as {
+          error?: { details?: Array<{ retryDelay?: string }> }
+        }
+        const retryDelayStr = json?.error?.details?.find(
+          (d) => d?.retryDelay
+        )?.retryDelay
+        if (retryDelayStr) {
+          const seconds = parseFloat(retryDelayStr.replace('s', ''))
+          if (!isNaN(seconds) && seconds > 0) {
+            delayMs = Math.ceil(seconds * 1000) + 1000
+          }
+        }
+      } catch {
+        delayMs = attempt * 5000
+      }
+      console.warn(
+        `[Google AI Studio] Rate limited (429). Retrying in ${delayMs / 1000}s (attempt ${attempt}/${maxAttempts})...`
+      )
+      await new Promise((r) => setTimeout(r, delayMs))
+      continue
+    }
+    return response
+  }
+  return fetch(input, init)
+}
+
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY,
+  fetch: fetchWithRateLimitRetry,
 })
 
 const gateway = createGatewayProvider({
